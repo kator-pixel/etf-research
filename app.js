@@ -25,9 +25,9 @@ function generateChartURL(ticker, date) {
     return `https://www.tradingview.com/chart/?symbol=${ticker}&interval=1D&from=${Math.floor(startDate.getTime()/1000)}&to=${Math.floor(endDate.getTime()/1000)}`;
 }
 
-// CORS proxy for Yahoo Finance API
-const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
-const YF_API_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart/';
+// Financial data APIs
+const ALPHA_VANTAGE_API_KEY = 'demo'; // Demo key - limited but works for testing
+const ALPHA_VANTAGE_BASE = 'https://www.alphavantage.co/query';
 
 async function fetchETFData(ticker, period = '1y') {
     try {

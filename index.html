@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ETF Recovery Analyzer</title>
+    <title>妖怪検索・情報抽出アプリ</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -21,33 +21,50 @@
             margin-top: 30px;
             margin-bottom: 30px;
         }
-        .metric-card {
+        .search-card {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border-radius: 10px;
-            padding: 20px;
-            margin-bottom: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
             text-align: center;
         }
-        .metric-value {
-            font-size: 2em;
-            font-weight: bold;
+        .yokai-card {
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
         }
-        .metric-label {
-            font-size: 0.9em;
-            opacity: 0.9;
+        .yokai-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
         }
-        .nav-tabs .nav-link {
-            color: #667eea;
-            font-weight: 500;
+        .yokai-image {
+            max-width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 15px;
         }
-        .nav-tabs .nav-link.active {
-            background-color: #667eea;
-            color: white;
-            border-color: #667eea;
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
         }
-        .table-container {
-            max-height: 500px;
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+            transform: translateY(-2px);
+        }
+        .yaml-output {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
             overflow-y: auto;
         }
         .loading-spinner {
@@ -58,36 +75,30 @@
         .loading-spinner.show {
             display: block;
         }
-        .btn-primary {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border: none;
+        .search-input {
+            border-radius: 25px;
+            padding: 15px 20px;
+            border: 2px solid #667eea;
+            font-size: 16px;
         }
-        .btn-primary:hover {
-            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        .search-input:focus {
+            border-color: #764ba2;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
         }
-        .alert-custom {
-            background-color: #f8f9fa;
-            border-left: 4px solid #667eea;
+        .yokai-name {
+            color: #667eea;
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-bottom: 10px;
         }
-        #chartContainer {
-            min-height: 400px;
+        .yokai-description {
+            color: #666;
+            line-height: 1.6;
         }
-        .etf-badge {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 5px;
-            display: inline-block;
-            margin: 2px;
-            text-decoration: none;
-            transition: all 0.3s ease;
-        }
-        .etf-badge:hover {
-            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-            color: white;
-            text-decoration: none;
-            transform: scale(1.05);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        .source-url {
+            font-size: 0.9em;
+            color: #888;
+            word-break: break-all;
         }
     </style>
 </head>
@@ -96,141 +107,68 @@
         <div class="row mb-4">
             <div class="col-12">
                 <h1 class="text-center mb-3">
-                    <i class="bi bi-graph-down"></i> ETF Drop Analyzer
+                    <i class="bi bi-search"></i> 妖怪検索・情報抽出アプリ
                 </h1>
                 <p class="text-center text-muted">
-                    直近365日間で5%以上下落したETFの検出ツール
+                    テキストに関連する妖怪情報を検索し、画像付きでYAMLファイルを生成
                 </p>
             </div>
         </div>
 
-        <div class="alert alert-custom" role="alert">
-            <h6><i class="bi bi-info-circle"></i> 分析条件</h6>
-            <ul class="mb-0 small">
-                <li>対象期間: 直近365日間（分析開始時点から）</li>
-                <li>日次下落: 1日で5%以上の下落</li>
-                <li>週次下落: 1週間（5営業日）で5%以上の下落</li>
-            </ul>
-        </div>
-
-        <div class="text-center mb-4">
-            <button id="analyzeBtn" class="btn btn-primary btn-lg" onclick="runAnalysis()">
-                <i class="bi bi-play-circle"></i> 分析開始
-            </button>
+        <div class="search-card">
+            <h3 class="mb-4">
+                <i class="bi bi-ghost"></i> 妖怪を検索
+            </h3>
+            <div class="row">
+                <div class="col-md-8 mx-auto">
+                    <div class="input-group mb-3">
+                        <input type="text" id="searchInput" class="form-control search-input" 
+                               placeholder="妖怪に関連するテキストを入力してください（例：鬼、狐、河童）">
+                        <button class="btn btn-light" type="button" onclick="searchYokai()">
+                            <i class="bi bi-search"></i> 検索
+                        </button>
+                    </div>
+                    <small class="text-light">
+                        <i class="bi bi-info-circle"></i> 
+                        妖怪の名前、特徴、地域名などを入力すると関連する妖怪を検索します
+                    </small>
+                </div>
+            </div>
         </div>
 
         <div class="loading-spinner" id="loadingSpinner">
             <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
                 <span class="visually-hidden">Loading...</span>
             </div>
-            <p class="mt-3">ETFデータを分析中...</p>
+            <p class="mt-3">妖怪情報を検索中...</p>
         </div>
 
         <div id="resultsSection" style="display: none;">
-            <div class="row mb-4" id="metricsRow">
-                <div class="col-md-2">
-                    <div class="metric-card">
-                        <div class="metric-value" id="qualifyingETFs">-</div>
-                        <div class="metric-label">該当ETF数</div>
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <div class="metric-card">
-                        <div class="metric-value" id="totalDrops">-</div>
-                        <div class="metric-label">総下落回数</div>
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <div class="metric-card">
-                        <div class="metric-value" id="dailyDrops">-</div>
-                        <div class="metric-label">日次下落</div>
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <div class="metric-card">
-                        <div class="metric-value" id="weeklyDrops">-</div>
-                        <div class="metric-label">週次下落</div>
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <div class="metric-card">
-                        <div class="metric-value" id="avgPriceReduction">-</div>
-                        <div class="metric-label">平均価格減少</div>
-                    </div>
-                </div>
-                <div class="col-md-2">
-                    <div class="metric-card">
-                        <div class="metric-value" id="totalPriceReduction">-</div>
-                        <div class="metric-label">総価格減少</div>
-                    </div>
+            <div class="row mb-4">
+                <div class="col-12">
+                    <h4><i class="bi bi-list-ul"></i> 検索結果</h4>
+                    <div id="yokaiResults"></div>
                 </div>
             </div>
 
-            <ul class="nav nav-tabs mb-3" id="resultTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="table-tab" data-bs-toggle="tab" data-bs-target="#table" type="button">
-                        <i class="bi bi-table"></i> データテーブル
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="chart-tab" data-bs-toggle="tab" data-bs-target="#chart" type="button">
-                        <i class="bi bi-bar-chart"></i> チャート
-                    </button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="report-tab" data-bs-toggle="tab" data-bs-target="#report" type="button">
-                        <i class="bi bi-file-text"></i> レポート
-                    </button>
-                </li>
-            </ul>
-
-            <div class="tab-content" id="resultTabContent">
-                <div class="tab-pane fade show active" id="table" role="tabpanel">
-                    <div class="alert alert-info" role="alert">
-                        <i class="bi bi-info-circle"></i> <strong>ヒント:</strong> ETFアイコンをクリックすると、その日のチャートが新しいタブで開きます
+            <div class="row">
+                <div class="col-12">
+                    <h4><i class="bi bi-file-earmark-code"></i> YAML出力</h4>
+                    <div class="yaml-output" id="yamlOutput"></div>
+                    <div class="mt-3">
+                        <button class="btn btn-success" onclick="downloadYAML()">
+                            <i class="bi bi-download"></i> YAMLファイルをダウンロード
+                        </button>
+                        <button class="btn btn-secondary ms-2" onclick="copyYAML()">
+                            <i class="bi bi-clipboard"></i> YAMLをコピー
+                        </button>
                     </div>
-                    <div class="table-container">
-                        <table class="table table-hover" id="resultsTable">
-                            <thead class="table-light sticky-top">
-                                <tr>
-                                    <th>ETF</th>
-                                    <th>タイプ</th>
-                                    <th>日付</th>
-                                    <th>曜日</th>
-                                    <th>下落率</th>
-                                    <th>価格変動</th>
-                                    <th>価格減少額</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tableBody">
-                            </tbody>
-                        </table>
-                    </div>
-                    <button class="btn btn-success mt-3" onclick="downloadCSV()">
-                        <i class="bi bi-download"></i> CSVダウンロード
-                    </button>
-                </div>
-                
-                <div class="tab-pane fade" id="chart" role="tabpanel">
-                    <div id="chartContainer"></div>
-                    <div id="etfSelector" class="mt-3" style="display: none;">
-                        <label for="etfSelect" class="form-label">ETFを選択:</label>
-                        <select class="form-select" id="etfSelect" onchange="updateChart()">
-                        </select>
-                    </div>
-                </div>
-                
-                <div class="tab-pane fade" id="report" role="tabpanel">
-                    <pre id="reportContent" class="bg-light p-3 rounded"></pre>
-                    <button class="btn btn-success mt-3" onclick="downloadReport()">
-                        <i class="bi bi-download"></i> レポートダウンロード
-                    </button>
                 </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="app.js"></script>
+    <script src="yokai-app.js"></script>
 </body>
 </html>
