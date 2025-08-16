@@ -229,23 +229,25 @@ function displayResults() {
     analysisResults.forEach(result => {
         const row = tableBody.insertRow();
         if (result.type === 'Daily') {
+            const priceChangeCalc = `${result.currentClose.toFixed(2)} - ${result.previousClose.toFixed(2)} = ${(result.currentClose - result.previousClose).toFixed(2)}`;
             row.innerHTML = `
                 <td><span class="etf-badge">${result.ticker}</span></td>
                 <td><span class="badge bg-danger">日次</span></td>
                 <td>${result.dropDate.toLocaleDateString('ja-JP')}</td>
                 <td>${result.dayOfWeek}</td>
                 <td class="text-danger">${result.dropPercentage.toFixed(2)}%</td>
-                <td>$${result.previousClose.toFixed(2)} → $${result.currentClose.toFixed(2)}</td>
+                <td class="font-monospace">${priceChangeCalc}</td>
                 <td class="text-danger fw-bold">-$${result.priceReduction.toFixed(2)}</td>
             `;
         } else {
+            const priceChangeCalc = `${result.endPrice.toFixed(2)} - ${result.startPrice.toFixed(2)} = ${(result.endPrice - result.startPrice).toFixed(2)}`;
             row.innerHTML = `
                 <td><span class="etf-badge">${result.ticker}</span></td>
                 <td><span class="badge bg-warning text-dark">週次</span></td>
                 <td>${result.dropStartDate.toLocaleDateString('ja-JP')} - ${result.dropEndDate.toLocaleDateString('ja-JP')}</td>
                 <td>-</td>
                 <td class="text-danger">${result.dropPercentage.toFixed(2)}%</td>
-                <td>$${result.startPrice.toFixed(2)} → $${result.endPrice.toFixed(2)}</td>
+                <td class="font-monospace">${priceChangeCalc}</td>
                 <td class="text-danger fw-bold">-$${result.priceReduction.toFixed(2)}</td>
             `;
         }
@@ -415,19 +417,21 @@ ${'='.repeat(50)}
     
     analysisResults.forEach(result => {
         if (result.type === 'Daily') {
+            const priceChange = (result.currentClose - result.previousClose).toFixed(2);
             report += `
 ${result.ticker} (日次下落):
   下落日: ${result.dropDate.toLocaleDateString('ja-JP')} (${result.dayOfWeek})
   下落率: ${result.dropPercentage.toFixed(2)}%
-  価格変動: $${result.previousClose.toFixed(2)} → $${result.currentClose.toFixed(2)}
+  価格変動: ${result.currentClose.toFixed(2)} - ${result.previousClose.toFixed(2)} = ${priceChange}
   価格減少額: $${result.priceReduction.toFixed(2)}
 `;
         } else {
+            const priceChange = (result.endPrice - result.startPrice).toFixed(2);
             report += `
 ${result.ticker} (週次下落):
   期間: ${result.dropStartDate.toLocaleDateString('ja-JP')} - ${result.dropEndDate.toLocaleDateString('ja-JP')}
   下落率: ${result.dropPercentage.toFixed(2)}%
-  価格変動: $${result.startPrice.toFixed(2)} → $${result.endPrice.toFixed(2)}
+  価格変動: ${result.endPrice.toFixed(2)} - ${result.startPrice.toFixed(2)} = ${priceChange}
   価格減少額: $${result.priceReduction.toFixed(2)}
 `;
         }
@@ -441,9 +445,11 @@ function downloadCSV() {
     
     analysisResults.forEach(result => {
         if (result.type === 'Daily') {
-            csv += `${result.ticker},日次,${result.dropDate.toLocaleDateString('ja-JP')},${result.dayOfWeek},${result.dropPercentage.toFixed(2)},"$${result.previousClose.toFixed(2)} → $${result.currentClose.toFixed(2)}",${result.priceReduction.toFixed(2)}\n`;
+            const priceChangeCalc = `${result.currentClose.toFixed(2)} - ${result.previousClose.toFixed(2)} = ${(result.currentClose - result.previousClose).toFixed(2)}`;
+            csv += `${result.ticker},日次,${result.dropDate.toLocaleDateString('ja-JP')},${result.dayOfWeek},${result.dropPercentage.toFixed(2)},"${priceChangeCalc}",${result.priceReduction.toFixed(2)}\n`;
         } else {
-            csv += `${result.ticker},週次,"${result.dropStartDate.toLocaleDateString('ja-JP')} - ${result.dropEndDate.toLocaleDateString('ja-JP')}",-,${result.dropPercentage.toFixed(2)},"$${result.startPrice.toFixed(2)} → $${result.endPrice.toFixed(2)}",${result.priceReduction.toFixed(2)}\n`;
+            const priceChangeCalc = `${result.endPrice.toFixed(2)} - ${result.startPrice.toFixed(2)} = ${(result.endPrice - result.startPrice).toFixed(2)}`;
+            csv += `${result.ticker},週次,"${result.dropStartDate.toLocaleDateString('ja-JP')} - ${result.dropEndDate.toLocaleDateString('ja-JP')}",-,${result.dropPercentage.toFixed(2)},"${priceChangeCalc}",${result.priceReduction.toFixed(2)}\n`;
         }
     });
     
