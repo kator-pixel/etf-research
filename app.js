@@ -98,6 +98,7 @@ function findPriceDrops(priceData, threshold = -0.05) {
         const dailyChange = (data[i].close - data[i-1].close) / data[i-1].close;
         
         if (dailyChange <= threshold) {
+            const priceReduction = data[i-1].close - data[i].close;
             drops.push({
                 ticker: priceData.ticker,
                 type: 'Daily',
@@ -105,6 +106,7 @@ function findPriceDrops(priceData, threshold = -0.05) {
                 previousClose: data[i-1].close,
                 currentClose: data[i].close,
                 dropPercentage: dailyChange * 100,
+                priceReduction: priceReduction,
                 dayOfWeek: data[i].date.toLocaleDateString('ja-JP', { weekday: 'long' })
             });
         }
@@ -128,6 +130,7 @@ function findPriceDrops(priceData, threshold = -0.05) {
             }
             
             if (!isDailyDrop) {
+                const priceReduction = data[i-5].close - data[i].close;
                 drops.push({
                     ticker: priceData.ticker,
                     type: 'Weekly',
@@ -135,7 +138,8 @@ function findPriceDrops(priceData, threshold = -0.05) {
                     dropEndDate: data[i].date,
                     startPrice: data[i-5].close,
                     endPrice: data[i].close,
-                    dropPercentage: weeklyChange * 100
+                    dropPercentage: weeklyChange * 100,
+                    priceReduction: priceReduction
                 });
             }
         }
@@ -201,12 +205,15 @@ function displayResults() {
     const uniqueETFs = new Set(analysisResults.map(r => r.ticker)).size;
     const dailyDrops = analysisResults.filter(r => r.type === 'Daily').length;
     const weeklyDrops = analysisResults.filter(r => r.type === 'Weekly').length;
-    const avgDrop = analysisResults.reduce((sum, r) => sum + Math.abs(r.dropPercentage), 0) / analysisResults.length;
+    const totalPriceReduction = analysisResults.reduce((sum, r) => sum + r.priceReduction, 0);
+    const avgPriceReduction = totalPriceReduction / analysisResults.length;
     
     document.getElementById('qualifyingETFs').textContent = uniqueETFs;
     document.getElementById('totalDrops').textContent = analysisResults.length;
     document.getElementById('dailyDrops').textContent = dailyDrops;
     document.getElementById('weeklyDrops').textContent = weeklyDrops;
+    document.getElementById('avgPriceReduction').textContent = '$' + avgPriceReduction.toFixed(2);
+    document.getElementById('totalPriceReduction').textContent = '$' + totalPriceReduction.toFixed(2);
     
     // Populate table
     const tableBody = document.getElementById('tableBody');
@@ -229,6 +236,7 @@ function displayResults() {
                 <td>${result.dayOfWeek}</td>
                 <td class="text-danger">${result.dropPercentage.toFixed(2)}%</td>
                 <td>$${result.previousClose.toFixed(2)} → $${result.currentClose.toFixed(2)}</td>
+                <td class="text-danger fw-bold">-$${result.priceReduction.toFixed(2)}</td>
             `;
         } else {
             row.innerHTML = `
@@ -238,6 +246,7 @@ function displayResults() {
                 <td>-</td>
                 <td class="text-danger">${result.dropPercentage.toFixed(2)}%</td>
                 <td>$${result.startPrice.toFixed(2)} → $${result.endPrice.toFixed(2)}</td>
+                <td class="text-danger fw-bold">-$${result.priceReduction.toFixed(2)}</td>
             `;
         }
     });
@@ -270,50 +279,37 @@ function createSummaryChart() {
     const chartContainer = document.getElementById('chartContainer');
     
     // Group by ticker for summary
-    const dropsByTicker = {};
-    const dailyDropsByTicker = {};
-    const weeklyDropsByTicker = {};
+    const priceReductionByTicker = {};
     
     analysisResults.forEach(result => {
-        if (!dropsByTicker[result.ticker]) {
-            dropsByTicker[result.ticker] = 0;
-            dailyDropsByTicker[result.ticker] = 0;
-            weeklyDropsByTicker[result.ticker] = 0;
+        if (!priceReductionByTicker[result.ticker]) {
+            priceReductionByTicker[result.ticker] = 0;
         }
-        dropsByTicker[result.ticker]++;
-        if (result.type === 'Daily') {
-            dailyDropsByTicker[result.ticker]++;
-        } else {
-            weeklyDropsByTicker[result.ticker]++;
-        }
+        priceReductionByTicker[result.ticker] += result.priceReduction;
     });
     
-    const tickers = Object.keys(dropsByTicker);
+    const tickers = Object.keys(priceReductionByTicker);
+    const reductions = tickers.map(t => priceReductionByTicker[t]);
     
-    const trace1 = {
+    const trace = {
         x: tickers,
-        y: tickers.map(t => dailyDropsByTicker[t]),
-        name: '日次下落',
+        y: reductions,
         type: 'bar',
-        marker: { color: 'rgba(255, 99, 132, 0.8)' }
-    };
-    
-    const trace2 = {
-        x: tickers,
-        y: tickers.map(t => weeklyDropsByTicker[t]),
-        name: '週次下落',
-        type: 'bar',
-        marker: { color: 'rgba(255, 206, 86, 0.8)' }
+        marker: { 
+            color: reductions.map(r => r > 10 ? 'rgba(255, 99, 132, 0.8)' : 'rgba(54, 162, 235, 0.8)')
+        },
+        text: reductions.map(r => '$' + r.toFixed(2)),
+        textposition: 'auto'
     };
     
     const layout = {
-        title: 'ETF別下落回数（5%以上）',
+        title: 'ETF別総価格減少額（5%以上下落）',
         xaxis: { title: 'ETF' },
-        yaxis: { title: '下落回数' },
-        barmode: 'stack'
+        yaxis: { title: '価格減少額 ($)' },
+        showlegend: false
     };
     
-    Plotly.newPlot(chartContainer, [trace1, trace2], layout, {responsive: true});
+    Plotly.newPlot(chartContainer, [trace], layout, {responsive: true});
 }
 
 function updateChart() {
@@ -391,6 +387,8 @@ function generateReport() {
     const uniqueETFs = new Set(analysisResults.map(r => r.ticker)).size;
     const dailyDrops = analysisResults.filter(r => r.type === 'Daily').length;
     const weeklyDrops = analysisResults.filter(r => r.type === 'Weekly').length;
+    const totalPriceReduction = analysisResults.reduce((sum, r) => sum + r.priceReduction, 0);
+    const avgPriceReduction = totalPriceReduction / analysisResults.length;
     const avgDrop = analysisResults.reduce((sum, r) => sum + Math.abs(r.dropPercentage), 0) / analysisResults.length;
     
     let report = `ETF下落分析レポート
@@ -408,6 +406,8 @@ ${'='.repeat(50)}
 - 日次下落: ${dailyDrops}回
 - 週次下落: ${weeklyDrops}回
 - 平均下落率: ${avgDrop.toFixed(2)}%
+- 総価格減少額: $${totalPriceReduction.toFixed(2)}
+- 平均価格減少額: $${avgPriceReduction.toFixed(2)}
 
 詳細結果:
 ${'='.repeat(50)}
@@ -420,6 +420,7 @@ ${result.ticker} (日次下落):
   下落日: ${result.dropDate.toLocaleDateString('ja-JP')} (${result.dayOfWeek})
   下落率: ${result.dropPercentage.toFixed(2)}%
   価格変動: $${result.previousClose.toFixed(2)} → $${result.currentClose.toFixed(2)}
+  価格減少額: $${result.priceReduction.toFixed(2)}
 `;
         } else {
             report += `
@@ -427,6 +428,7 @@ ${result.ticker} (週次下落):
   期間: ${result.dropStartDate.toLocaleDateString('ja-JP')} - ${result.dropEndDate.toLocaleDateString('ja-JP')}
   下落率: ${result.dropPercentage.toFixed(2)}%
   価格変動: $${result.startPrice.toFixed(2)} → $${result.endPrice.toFixed(2)}
+  価格減少額: $${result.priceReduction.toFixed(2)}
 `;
         }
     });
@@ -435,13 +437,13 @@ ${result.ticker} (週次下落):
 }
 
 function downloadCSV() {
-    let csv = 'ETF,タイプ,日付,曜日,下落率(%),価格変動\n';
+    let csv = 'ETF,タイプ,日付,曜日,下落率(%),価格変動,価格減少額($)\n';
     
     analysisResults.forEach(result => {
         if (result.type === 'Daily') {
-            csv += `${result.ticker},日次,${result.dropDate.toLocaleDateString('ja-JP')},${result.dayOfWeek},${result.dropPercentage.toFixed(2)},"$${result.previousClose.toFixed(2)} → $${result.currentClose.toFixed(2)}"\n`;
+            csv += `${result.ticker},日次,${result.dropDate.toLocaleDateString('ja-JP')},${result.dayOfWeek},${result.dropPercentage.toFixed(2)},"$${result.previousClose.toFixed(2)} → $${result.currentClose.toFixed(2)}",${result.priceReduction.toFixed(2)}\n`;
         } else {
-            csv += `${result.ticker},週次,"${result.dropStartDate.toLocaleDateString('ja-JP')} - ${result.dropEndDate.toLocaleDateString('ja-JP')}",-,${result.dropPercentage.toFixed(2)},"$${result.startPrice.toFixed(2)} → $${result.endPrice.toFixed(2)}"\n`;
+            csv += `${result.ticker},週次,"${result.dropStartDate.toLocaleDateString('ja-JP')} - ${result.dropEndDate.toLocaleDateString('ja-JP')}",-,${result.dropPercentage.toFixed(2)},"$${result.startPrice.toFixed(2)} → $${result.endPrice.toFixed(2)}",${result.priceReduction.toFixed(2)}\n`;
         }
     });
     

@@ -119,28 +119,40 @@
 
         <div id="resultsSection" style="display: none;">
             <div class="row mb-4" id="metricsRow">
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="metric-card">
                         <div class="metric-value" id="qualifyingETFs">-</div>
                         <div class="metric-label">該当ETF数</div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="metric-card">
                         <div class="metric-value" id="totalDrops">-</div>
                         <div class="metric-label">総下落回数</div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="metric-card">
                         <div class="metric-value" id="dailyDrops">-</div>
                         <div class="metric-label">日次下落</div>
                     </div>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <div class="metric-card">
                         <div class="metric-value" id="weeklyDrops">-</div>
                         <div class="metric-label">週次下落</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="metric-card">
+                        <div class="metric-value" id="avgPriceReduction">-</div>
+                        <div class="metric-label">平均価格減少</div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <div class="metric-card">
+                        <div class="metric-value" id="totalPriceReduction">-</div>
+                        <div class="metric-label">総価格減少</div>
                     </div>
                 </div>
             </div>
@@ -175,6 +187,7 @@
                                     <th>曜日</th>
                                     <th>下落率</th>
                                     <th>価格変動</th>
+                                    <th>価格減少額</th>
                                 </tr>
                             </thead>
                             <tbody id="tableBody">
