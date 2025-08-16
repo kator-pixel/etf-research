@@ -9,6 +9,22 @@ const TOP_ETFS = [
 let analysisResults = [];
 let etfPriceData = {};
 
+// Function to generate chart URL for a specific date
+function generateChartURL(ticker, date) {
+    // Use TradingView for detailed daily charts
+    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD format
+    const startDate = new Date(date);
+    startDate.setDate(date.getDate() - 7); // Show 1 week before
+    const endDate = new Date(date);
+    endDate.setDate(date.getDate() + 1); // Show 1 day after
+    
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+    
+    // TradingView URL with specific date range
+    return `https://www.tradingview.com/chart/?symbol=${ticker}&interval=1D&from=${Math.floor(startDate.getTime()/1000)}&to=${Math.floor(endDate.getTime()/1000)}`;
+}
+
 // CORS proxy for Yahoo Finance API
 const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
 const YF_API_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart/';
@@ -230,8 +246,9 @@ function displayResults() {
         const row = tableBody.insertRow();
         if (result.type === 'Daily') {
             const priceChangeCalc = `${result.currentClose.toFixed(2)} - ${result.previousClose.toFixed(2)} = ${(result.currentClose - result.previousClose).toFixed(2)}`;
+            const chartURL = generateChartURL(result.ticker, result.dropDate);
             row.innerHTML = `
-                <td><span class="etf-badge">${result.ticker}</span></td>
+                <td><a href="${chartURL}" target="_blank" class="etf-badge" title="クリックして${result.dropDate.toLocaleDateString('ja-JP')}のチャートを表示">${result.ticker}</a></td>
                 <td><span class="badge bg-danger">日次</span></td>
                 <td>${result.dropDate.toLocaleDateString('ja-JP')}</td>
                 <td>${result.dayOfWeek}</td>
@@ -241,8 +258,9 @@ function displayResults() {
             `;
         } else {
             const priceChangeCalc = `${result.endPrice.toFixed(2)} - ${result.startPrice.toFixed(2)} = ${(result.endPrice - result.startPrice).toFixed(2)}`;
+            const chartURL = generateChartURL(result.ticker, result.dropEndDate);
             row.innerHTML = `
-                <td><span class="etf-badge">${result.ticker}</span></td>
+                <td><a href="${chartURL}" target="_blank" class="etf-badge" title="クリックして${result.dropEndDate.toLocaleDateString('ja-JP')}のチャートを表示">${result.ticker}</a></td>
                 <td><span class="badge bg-warning text-dark">週次</span></td>
                 <td>${result.dropStartDate.toLocaleDateString('ja-JP')} - ${result.dropEndDate.toLocaleDateString('ja-JP')}</td>
                 <td>-</td>
