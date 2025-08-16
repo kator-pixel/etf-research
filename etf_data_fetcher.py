@@ -45,7 +45,7 @@ class ETFDataFetcher:
         market_caps.sort(key=lambda x: x[1], reverse=True)
         return market_caps[:n]
     
-    def find_price_drops(self, ticker: str, threshold: float = -0.10, lookback_days: int = 730) -> List[Dict]:
+    def find_price_drops(self, ticker: str, threshold: float = -0.05) -> List[Dict]:
         drops = []
         
         try:
@@ -57,19 +57,42 @@ class ETFDataFetcher:
             prices = data['Close'].values
             dates = pd.to_datetime(data['Date']).values
             
-            for i in range(len(prices) - 1):
-                for j in range(i + 1, min(i + lookback_days, len(prices))):
-                    price_change = (prices[j] - prices[i]) / prices[i]
+            # Find daily drops (5%+ in a single day)
+            for i in range(1, len(prices)):
+                daily_change = (prices[i] - prices[i-1]) / prices[i-1]
+                
+                if daily_change <= threshold:
+                    drops.append({
+                        'ticker': ticker,
+                        'type': 'Daily',
+                        'drop_date': pd.Timestamp(dates[i]),
+                        'previous_close': prices[i-1],
+                        'current_close': prices[i],
+                        'drop_percentage': daily_change * 100,
+                        'day_of_week': pd.Timestamp(dates[i]).strftime('%A')
+                    })
+            
+            # Find weekly drops (5%+ in a week)
+            for i in range(5, len(prices)):
+                weekly_change = (prices[i] - prices[i-5]) / prices[i-5]
+                
+                if weekly_change <= threshold:
+                    # Check if this isn't already captured as daily drops
+                    is_daily_drop = False
+                    for j in range(i-4, i+1):
+                        if j > 0 and (prices[j] - prices[j-1]) / prices[j-1] <= threshold:
+                            is_daily_drop = True
+                            break
                     
-                    if price_change <= threshold:
+                    if not is_daily_drop:
                         drops.append({
                             'ticker': ticker,
-                            'drop_start_date': pd.Timestamp(dates[i]),
-                            'drop_end_date': pd.Timestamp(dates[j]),
-                            'start_price': prices[i],
-                            'bottom_price': prices[j],
-                            'drop_percentage': price_change * 100,
-                            'drop_index': j
+                            'type': 'Weekly',
+                            'drop_start_date': pd.Timestamp(dates[i-5]),
+                            'drop_end_date': pd.Timestamp(dates[i]),
+                            'start_price': prices[i-5],
+                            'end_price': prices[i],
+                            'drop_percentage': weekly_change * 100
                         })
             
         except Exception as e:
@@ -77,43 +100,4 @@ class ETFDataFetcher:
             
         return drops
     
-    def find_recoveries(self, ticker: str, drops: List[Dict], recovery_threshold: float = 0.15,
-                       min_days: int = 180, max_days: int = 365) -> List[Dict]:
-        recoveries = []
-        
-        try:
-            data = self.fetch_etf_data(ticker, period="2y")
-            if data.empty:
-                return recoveries
-                
-            data = data.reset_index()
-            prices = data['Close'].values
-            dates = pd.to_datetime(data['Date']).values
-            
-            for drop in drops:
-                drop_idx = drop['drop_index']
-                bottom_price = drop['bottom_price']
-                
-                for k in range(drop_idx + 1, min(drop_idx + max_days, len(prices))):
-                    days_since_bottom = k - drop_idx
-                    
-                    if days_since_bottom >= min_days:
-                        recovery_pct = (prices[k] - bottom_price) / bottom_price
-                        
-                        if recovery_pct >= recovery_threshold:
-                            recoveries.append({
-                                'ticker': ticker,
-                                'drop_date': drop['drop_end_date'],
-                                'recovery_date': pd.Timestamp(dates[k]),
-                                'bottom_price': bottom_price,
-                                'recovery_price': prices[k],
-                                'recovery_percentage': recovery_pct * 100,
-                                'days_to_recover': days_since_bottom,
-                                'original_drop_percentage': drop['drop_percentage']
-                            })
-                            break
-                            
-        except Exception as e:
-            print(f"Error finding recoveries for {ticker}: {e}")
-            
-        return recoveries
+    # Recovery analysis removed - focusing on drop detection only

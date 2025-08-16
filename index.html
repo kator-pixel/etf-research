@@ -87,10 +87,10 @@
         <div class="row mb-4">
             <div class="col-12">
                 <h1 class="text-center mb-3">
-                    <i class="bi bi-graph-up"></i> ETF Recovery Analyzer
+                    <i class="bi bi-graph-down"></i> ETF Drop Analyzer
                 </h1>
                 <p class="text-center text-muted">
-                    時価総額トップETFの下落・回復パターン分析ツール
+                    直近2年間で5%以上下落したETFの検出ツール
                 </p>
             </div>
         </div>
@@ -98,9 +98,9 @@
         <div class="alert alert-custom" role="alert">
             <h6><i class="bi bi-info-circle"></i> 分析条件</h6>
             <ul class="mb-0 small">
-                <li>対象: 時価総額上位ETF</li>
-                <li>下落基準: 過去2年間で10%以上の下落</li>
-                <li>回復基準: 下落後6-12ヶ月以内に15%以上の上昇</li>
+                <li>対象期間: 直近2年間</li>
+                <li>日次下落: 1日で5%以上の下落</li>
+                <li>週次下落: 1週間（5営業日）で5%以上の下落</li>
             </ul>
         </div>
 
@@ -122,25 +122,25 @@
                 <div class="col-md-3">
                     <div class="metric-card">
                         <div class="metric-value" id="qualifyingETFs">-</div>
-                        <div class="metric-label">対象ETF数</div>
+                        <div class="metric-label">該当ETF数</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="metric-card">
-                        <div class="metric-value" id="recoveryEvents">-</div>
-                        <div class="metric-label">回復イベント</div>
+                        <div class="metric-value" id="totalDrops">-</div>
+                        <div class="metric-label">総下落回数</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="metric-card">
-                        <div class="metric-value" id="avgRecovery">-</div>
-                        <div class="metric-label">平均回復率</div>
+                        <div class="metric-value" id="dailyDrops">-</div>
+                        <div class="metric-label">日次下落</div>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="metric-card">
-                        <div class="metric-value" id="avgDays">-</div>
-                        <div class="metric-label">平均回復日数</div>
+                        <div class="metric-value" id="weeklyDrops">-</div>
+                        <div class="metric-label">週次下落</div>
                     </div>
                 </div>
             </div>
@@ -170,11 +170,11 @@
                             <thead class="table-light sticky-top">
                                 <tr>
                                     <th>ETF</th>
-                                    <th>下落日</th>
-                                    <th>回復日</th>
+                                    <th>タイプ</th>
+                                    <th>日付</th>
+                                    <th>曜日</th>
                                     <th>下落率</th>
-                                    <th>回復率</th>
-                                    <th>回復日数</th>
+                                    <th>価格変動</th>
                                 </tr>
                             </thead>
                             <tbody id="tableBody">

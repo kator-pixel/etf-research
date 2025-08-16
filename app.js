@@ -1,4 +1,4 @@
-// ETF Recovery Analyzer - JavaScript Implementation
+// ETF Drop Analyzer - JavaScript Implementation
 
 const TOP_ETFS = [
     'SPY', 'IVV', 'VOO', 'VTI', 'QQQ',
@@ -89,23 +89,53 @@ function generateMockData(ticker) {
     };
 }
 
-function findPriceDrops(priceData, threshold = -0.10) {
+function findPriceDrops(priceData, threshold = -0.05) {
     const drops = [];
     const data = priceData.data;
     
-    for (let i = 0; i < data.length - 20; i++) {
-        for (let j = i + 1; j < Math.min(i + 100, data.length); j++) {
-            const priceChange = (data[j].close - data[i].close) / data[i].close;
+    // Find daily drops (5%+ in a single day)
+    for (let i = 1; i < data.length; i++) {
+        const dailyChange = (data[i].close - data[i-1].close) / data[i-1].close;
+        
+        if (dailyChange <= threshold) {
+            drops.push({
+                ticker: priceData.ticker,
+                type: 'Daily',
+                dropDate: data[i].date,
+                previousClose: data[i-1].close,
+                currentClose: data[i].close,
+                dropPercentage: dailyChange * 100,
+                dayOfWeek: data[i].date.toLocaleDateString('ja-JP', { weekday: 'long' })
+            });
+        }
+    }
+    
+    // Find weekly drops (5%+ in a week)
+    for (let i = 5; i < data.length; i++) {
+        const weeklyChange = (data[i].close - data[i-5].close) / data[i-5].close;
+        
+        if (weeklyChange <= threshold) {
+            // Check if this isn't already captured as daily drops
+            let isDailyDrop = false;
+            for (let j = i-4; j <= i; j++) {
+                if (j > 0) {
+                    const dayChange = (data[j].close - data[j-1].close) / data[j-1].close;
+                    if (dayChange <= threshold) {
+                        isDailyDrop = true;
+                        break;
+                    }
+                }
+            }
             
-            if (priceChange <= threshold) {
+            if (!isDailyDrop) {
                 drops.push({
                     ticker: priceData.ticker,
-                    dropStartDate: data[i].date,
-                    dropEndDate: data[j].date,
-                    startPrice: data[i].close,
-                    bottomPrice: data[j].close,
-                    dropPercentage: priceChange * 100,
-                    dropIndex: j
+                    type: 'Weekly',
+                    dropStartDate: data[i-5].date,
+                    dropEndDate: data[i].date,
+                    startPrice: data[i-5].close,
+                    endPrice: data[i].close,
+                    dropPercentage: weeklyChange * 100
                 });
             }
         }
@@ -114,40 +144,7 @@ function findPriceDrops(priceData, threshold = -0.10) {
     return drops;
 }
 
-function findRecoveries(priceData, drops, recoveryThreshold = 0.15, minDays = 180, maxDays = 365) {
-    const recoveries = [];
-    const data = priceData.data;
-    
-    for (const drop of drops) {
-        const dropIdx = drop.dropIndex;
-        const bottomPrice = drop.bottomPrice;
-        
-        for (let k = dropIdx + 1; k < Math.min(dropIdx + maxDays, data.length); k++) {
-            const daysSinceBottom = k - dropIdx;
-            
-            if (daysSinceBottom >= minDays) {
-                const recoveryPct = (data[k].close - bottomPrice) / bottomPrice;
-                
-                if (recoveryPct >= recoveryThreshold) {
-                    recoveries.push({
-                        ticker: priceData.ticker,
-                        dropDate: drop.dropEndDate,
-                        recoveryDate: data[k].date,
-                        bottomPrice: bottomPrice,
-                        recoveryPrice: data[k].close,
-                        recoveryPercentage: recoveryPct * 100,
-                        daysToRecover: daysSinceBottom,
-                        originalDropPercentage: drop.dropPercentage,
-                        marketCap: priceData.marketCap
-                    });
-                    break;
-                }
-            }
-        }
-    }
-    
-    return recoveries;
-}
+// Remove recovery analysis as it's not needed for the new requirements
 
 async function runAnalysis() {
     const loadingSpinner = document.getElementById('loadingSpinner');
@@ -163,7 +160,7 @@ async function runAnalysis() {
     
     try {
         // Analyze top ETFs
-        for (const ticker of TOP_ETFS.slice(0, 10)) {
+        for (const ticker of TOP_ETFS.slice(0, 15)) {
             console.log(`Analyzing ${ticker}...`);
             
             const priceData = await fetchETFData(ticker);
@@ -172,11 +169,7 @@ async function runAnalysis() {
             const drops = findPriceDrops(priceData);
             
             if (drops.length > 0) {
-                const recoveries = findRecoveries(priceData, drops.slice(0, 5)); // Limit drops analyzed
-                
-                if (recoveries.length > 0) {
-                    analysisResults.push(...recoveries);
-                }
+                analysisResults.push(...drops);
             }
             
             // Small delay to avoid rate limiting
@@ -198,7 +191,7 @@ function displayResults() {
     const resultsSection = document.getElementById('resultsSection');
     
     if (analysisResults.length === 0) {
-        alert('指定条件に該当するETFが見つかりませんでした。');
+        alert('5%以上下落したETFが見つかりませんでした。');
         return;
     }
     
@@ -206,30 +199,47 @@ function displayResults() {
     
     // Update metrics
     const uniqueETFs = new Set(analysisResults.map(r => r.ticker)).size;
-    const avgRecovery = analysisResults.reduce((sum, r) => sum + r.recoveryPercentage, 0) / analysisResults.length;
-    const avgDays = analysisResults.reduce((sum, r) => sum + r.daysToRecover, 0) / analysisResults.length;
+    const dailyDrops = analysisResults.filter(r => r.type === 'Daily').length;
+    const weeklyDrops = analysisResults.filter(r => r.type === 'Weekly').length;
+    const avgDrop = analysisResults.reduce((sum, r) => sum + Math.abs(r.dropPercentage), 0) / analysisResults.length;
     
     document.getElementById('qualifyingETFs').textContent = uniqueETFs;
-    document.getElementById('recoveryEvents').textContent = analysisResults.length;
-    document.getElementById('avgRecovery').textContent = avgRecovery.toFixed(1) + '%';
-    document.getElementById('avgDays').textContent = Math.round(avgDays) + '日';
+    document.getElementById('totalDrops').textContent = analysisResults.length;
+    document.getElementById('dailyDrops').textContent = dailyDrops;
+    document.getElementById('weeklyDrops').textContent = weeklyDrops;
     
     // Populate table
     const tableBody = document.getElementById('tableBody');
     tableBody.innerHTML = '';
     
-    analysisResults.sort((a, b) => b.recoveryPercentage - a.recoveryPercentage);
+    analysisResults.sort((a, b) => {
+        // Sort by date (newest first) and then by drop percentage
+        const dateA = a.type === 'Daily' ? a.dropDate : a.dropEndDate;
+        const dateB = b.type === 'Daily' ? b.dropDate : b.dropEndDate;
+        return dateB - dateA;
+    });
     
     analysisResults.forEach(result => {
         const row = tableBody.insertRow();
-        row.innerHTML = `
-            <td><span class="etf-badge">${result.ticker}</span></td>
-            <td>${result.dropDate.toLocaleDateString('ja-JP')}</td>
-            <td>${result.recoveryDate.toLocaleDateString('ja-JP')}</td>
-            <td class="text-danger">${result.originalDropPercentage.toFixed(1)}%</td>
-            <td class="text-success">${result.recoveryPercentage.toFixed(1)}%</td>
-            <td>${result.daysToRecover}日</td>
-        `;
+        if (result.type === 'Daily') {
+            row.innerHTML = `
+                <td><span class="etf-badge">${result.ticker}</span></td>
+                <td><span class="badge bg-danger">日次</span></td>
+                <td>${result.dropDate.toLocaleDateString('ja-JP')}</td>
+                <td>${result.dayOfWeek}</td>
+                <td class="text-danger">${result.dropPercentage.toFixed(2)}%</td>
+                <td>$${result.previousClose.toFixed(2)} → $${result.currentClose.toFixed(2)}</td>
+            `;
+        } else {
+            row.innerHTML = `
+                <td><span class="etf-badge">${result.ticker}</span></td>
+                <td><span class="badge bg-warning text-dark">週次</span></td>
+                <td>${result.dropStartDate.toLocaleDateString('ja-JP')} - ${result.dropEndDate.toLocaleDateString('ja-JP')}</td>
+                <td>-</td>
+                <td class="text-danger">${result.dropPercentage.toFixed(2)}%</td>
+                <td>$${result.startPrice.toFixed(2)} → $${result.endPrice.toFixed(2)}</td>
+            `;
+        }
     });
     
     // Update ETF selector
@@ -260,39 +270,50 @@ function createSummaryChart() {
     const chartContainer = document.getElementById('chartContainer');
     
     // Group by ticker for summary
-    const recoveryByTicker = {};
+    const dropsByTicker = {};
+    const dailyDropsByTicker = {};
+    const weeklyDropsByTicker = {};
+    
     analysisResults.forEach(result => {
-        if (!recoveryByTicker[result.ticker]) {
-            recoveryByTicker[result.ticker] = [];
+        if (!dropsByTicker[result.ticker]) {
+            dropsByTicker[result.ticker] = 0;
+            dailyDropsByTicker[result.ticker] = 0;
+            weeklyDropsByTicker[result.ticker] = 0;
         }
-        recoveryByTicker[result.ticker].push(result.recoveryPercentage);
+        dropsByTicker[result.ticker]++;
+        if (result.type === 'Daily') {
+            dailyDropsByTicker[result.ticker]++;
+        } else {
+            weeklyDropsByTicker[result.ticker]++;
+        }
     });
     
-    const tickers = Object.keys(recoveryByTicker);
-    const avgRecoveries = tickers.map(ticker => {
-        const recoveries = recoveryByTicker[ticker];
-        return recoveries.reduce((sum, r) => sum + r, 0) / recoveries.length;
-    });
+    const tickers = Object.keys(dropsByTicker);
     
-    const data = [{
+    const trace1 = {
         x: tickers,
-        y: avgRecoveries,
+        y: tickers.map(t => dailyDropsByTicker[t]),
+        name: '日次下落',
         type: 'bar',
-        marker: {
-            color: 'rgba(102, 126, 234, 0.8)'
-        },
-        text: avgRecoveries.map(r => r.toFixed(1) + '%'),
-        textposition: 'auto'
-    }];
-    
-    const layout = {
-        title: 'ETF別平均回復率',
-        xaxis: { title: 'ETF' },
-        yaxis: { title: '回復率 (%)' },
-        showlegend: false
+        marker: { color: 'rgba(255, 99, 132, 0.8)' }
     };
     
-    Plotly.newPlot(chartContainer, data, layout, {responsive: true});
+    const trace2 = {
+        x: tickers,
+        y: tickers.map(t => weeklyDropsByTicker[t]),
+        name: '週次下落',
+        type: 'bar',
+        marker: { color: 'rgba(255, 206, 86, 0.8)' }
+    };
+    
+    const layout = {
+        title: 'ETF別下落回数（5%以上）',
+        xaxis: { title: 'ETF' },
+        yaxis: { title: '下落回数' },
+        barmode: 'stack'
+    };
+    
+    Plotly.newPlot(chartContainer, [trace1, trace2], layout, {responsive: true});
 }
 
 function updateChart() {
@@ -326,23 +347,36 @@ function createETFChart(ticker) {
     
     const traces = [trace1];
     
-    // Add recovery markers
-    const tickerRecoveries = analysisResults.filter(r => r.ticker === ticker);
+    // Add drop markers
+    const tickerDrops = analysisResults.filter(r => r.ticker === ticker);
     
-    tickerRecoveries.forEach((recovery, index) => {
+    const dailyDrops = tickerDrops.filter(d => d.type === 'Daily');
+    const weeklyDrops = tickerDrops.filter(d => d.type === 'Weekly');
+    
+    if (dailyDrops.length > 0) {
         traces.push({
-            x: [recovery.dropDate, recovery.recoveryDate],
-            y: [recovery.bottomPrice, recovery.recoveryPrice],
+            x: dailyDrops.map(d => d.dropDate),
+            y: dailyDrops.map(d => d.currentClose),
             type: 'scatter',
-            mode: 'markers+lines',
-            name: `回復 ${index + 1}`,
-            line: { color: 'green', dash: 'dash' },
-            marker: { size: 10, color: ['red', 'green'] }
+            mode: 'markers',
+            name: '日次下落 (5%+)',
+            marker: { size: 8, color: 'red', symbol: 'circle' }
         });
-    });
+    }
+    
+    if (weeklyDrops.length > 0) {
+        traces.push({
+            x: weeklyDrops.map(d => d.dropEndDate),
+            y: weeklyDrops.map(d => d.endPrice),
+            type: 'scatter',
+            mode: 'markers',
+            name: '週次下落 (5%+)',
+            marker: { size: 10, color: 'orange', symbol: 'triangle-up' }
+        });
+    }
     
     const layout = {
-        title: `${ticker} - 価格推移と回復パターン`,
+        title: `${ticker} - 価格推移と下落ポイント`,
         xaxis: { title: '日付' },
         yaxis: { title: '価格 ($)' },
         showlegend: true
@@ -355,57 +389,68 @@ function generateReport() {
     const reportContent = document.getElementById('reportContent');
     
     const uniqueETFs = new Set(analysisResults.map(r => r.ticker)).size;
-    const avgRecovery = analysisResults.reduce((sum, r) => sum + r.recoveryPercentage, 0) / analysisResults.length;
-    const avgDays = analysisResults.reduce((sum, r) => sum + r.daysToRecover, 0) / analysisResults.length;
+    const dailyDrops = analysisResults.filter(r => r.type === 'Daily').length;
+    const weeklyDrops = analysisResults.filter(r => r.type === 'Weekly').length;
+    const avgDrop = analysisResults.reduce((sum, r) => sum + Math.abs(r.dropPercentage), 0) / analysisResults.length;
     
-    let report = `ETF回復分析レポート
+    let report = `ETF下落分析レポート
 ${'='.repeat(50)}
 分析日時: ${new Date().toLocaleString('ja-JP')}
 
 分析条件:
-- 対象: 時価総額上位ETF
-- 下落基準: 過去2年間で10%以上の下落
-- 回復基準: 下落後6-12ヶ月以内に15%以上の上昇
+- 対象期間: 直近2年間
+- 日次下落: 1日で5%以上の下落
+- 週次下落: 1週間で5%以上の下落
 
 サマリー統計:
-- 対象ETF数: ${uniqueETFs}
-- 回復イベント数: ${analysisResults.length}
-- 平均回復率: ${avgRecovery.toFixed(2)}%
-- 平均回復日数: ${Math.round(avgDays)}日
+- 該当ETF数: ${uniqueETFs}
+- 総下落回数: ${analysisResults.length}
+- 日次下落: ${dailyDrops}回
+- 週次下落: ${weeklyDrops}回
+- 平均下落率: ${avgDrop.toFixed(2)}%
 
 詳細結果:
 ${'='.repeat(50)}
 `;
     
     analysisResults.forEach(result => {
-        report += `
-${result.ticker}:
-  下落日: ${result.dropDate.toLocaleDateString('ja-JP')}
-  回復日: ${result.recoveryDate.toLocaleDateString('ja-JP')}
-  下落率: ${result.originalDropPercentage.toFixed(2)}%
-  回復率: ${result.recoveryPercentage.toFixed(2)}%
-  回復日数: ${result.daysToRecover}日
-  底値: $${result.bottomPrice.toFixed(2)}
-  回復価格: $${result.recoveryPrice.toFixed(2)}
+        if (result.type === 'Daily') {
+            report += `
+${result.ticker} (日次下落):
+  下落日: ${result.dropDate.toLocaleDateString('ja-JP')} (${result.dayOfWeek})
+  下落率: ${result.dropPercentage.toFixed(2)}%
+  価格変動: $${result.previousClose.toFixed(2)} → $${result.currentClose.toFixed(2)}
 `;
+        } else {
+            report += `
+${result.ticker} (週次下落):
+  期間: ${result.dropStartDate.toLocaleDateString('ja-JP')} - ${result.dropEndDate.toLocaleDateString('ja-JP')}
+  下落率: ${result.dropPercentage.toFixed(2)}%
+  価格変動: $${result.startPrice.toFixed(2)} → $${result.endPrice.toFixed(2)}
+`;
+        }
     });
     
     reportContent.textContent = report;
 }
 
 function downloadCSV() {
-    let csv = 'ETF,下落日,回復日,下落率(%),回復率(%),回復日数\n';
+    let csv = 'ETF,タイプ,日付,曜日,下落率(%),価格変動\n';
     
     analysisResults.forEach(result => {
-        csv += `${result.ticker},${result.dropDate.toLocaleDateString('ja-JP')},${result.recoveryDate.toLocaleDateString('ja-JP')},${result.originalDropPercentage.toFixed(1)},${result.recoveryPercentage.toFixed(1)},${result.daysToRecover}\n`;
+        if (result.type === 'Daily') {
+            csv += `${result.ticker},日次,${result.dropDate.toLocaleDateString('ja-JP')},${result.dayOfWeek},${result.dropPercentage.toFixed(2)},"$${result.previousClose.toFixed(2)} → $${result.currentClose.toFixed(2)}"\n`;
+        } else {
+            csv += `${result.ticker},週次,"${result.dropStartDate.toLocaleDateString('ja-JP')} - ${result.dropEndDate.toLocaleDateString('ja-JP')}",-,${result.dropPercentage.toFixed(2)},"$${result.startPrice.toFixed(2)} → $${result.endPrice.toFixed(2)}"\n`;
+        }
     });
     
-    downloadFile(csv, 'etf_recovery_analysis.csv', 'text/csv');
+    downloadFile(csv, 'etf_drop_analysis.csv', 'text/csv');
 }
 
 function downloadReport() {
     const report = document.getElementById('reportContent').textContent;
-    downloadFile(report, 'etf_recovery_report.txt', 'text/plain');
+    downloadFile(report, 'etf_drop_report.txt', 'text/plain');
 }
 
 function downloadFile(content, filename, type) {
