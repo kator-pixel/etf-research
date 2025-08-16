@@ -15,7 +15,7 @@ class ETFDataFetcher:
     def __init__(self):
         self.etf_data = {}
         
-    def fetch_etf_data(self, ticker: str, period: str = "2y") -> pd.DataFrame:
+    def fetch_etf_data(self, ticker: str, period: str = "1y") -> pd.DataFrame:
         try:
             etf = yf.Ticker(ticker)
             hist = etf.history(period=period)
@@ -49,7 +49,7 @@ class ETFDataFetcher:
         drops = []
         
         try:
-            data = self.fetch_etf_data(ticker, period="2y")
+            data = self.fetch_etf_data(ticker, period="1y")
             if data.empty:
                 return drops
                 

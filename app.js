@@ -29,11 +29,11 @@ function generateChartURL(ticker, date) {
 const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/';
 const YF_API_BASE = 'https://query1.finance.yahoo.com/v8/finance/chart/';
 
-async function fetchETFData(ticker, period = '2y') {
+async function fetchETFData(ticker, period = '1y') {
     try {
         // Using Yahoo Finance API with CORS proxy
         const interval = '1d';
-        const range = '2y';
+        const range = '1y';
         
         const url = `${CORS_PROXY}${YF_API_BASE}${ticker}?range=${range}&interval=${interval}`;
         
@@ -74,12 +74,12 @@ async function fetchETFData(ticker, period = '2y') {
 function generateMockData(ticker) {
     // Generate realistic mock data for demonstration
     const startDate = new Date();
-    startDate.setFullYear(startDate.getFullYear() - 2);
+    startDate.setFullYear(startDate.getFullYear() - 1); // Changed to 1 year
     
     const data = [];
     let price = 100 + Math.random() * 200;
     
-    for (let i = 0; i < 500; i++) {
+    for (let i = 0; i < 365; i++) { // Changed to 365 days
         const date = new Date(startDate);
         date.setDate(date.getDate() + i);
         
@@ -416,7 +416,7 @@ ${'='.repeat(50)}
 分析日時: ${new Date().toLocaleString('ja-JP')}
 
 分析条件:
-- 対象期間: 直近2年間
+- 対象期間: 直近365日間（分析開始時点から）
 - 日次下落: 1日で5%以上の下落
 - 週次下落: 1週間で5%以上の下落
 
